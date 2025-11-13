@@ -3,7 +3,8 @@ from flask_cors import CORS
 import os
 import time
 import re
-import pandas as pd # <-- REQUIRED for the data processing logic
+import pandas as pd
+import traceback # <-- ADDED for detailed error logging
 
 # Helper function to normalize column names by stripping excess whitespace
 def normalize_column_name(col_name):
@@ -17,6 +18,7 @@ EXCEL_FILE_PATH = 'INGRES DATABASE.xlsx'
 DATA_SHEET_NAMES = ['2025', '2024', '2023', '2022', '2020'] 
 
 # Define the RAW column names, and then create their normalized versions for use in code.
+# IMPORTANT: These must EXACTLY match the header names in your Excel sheets.
 COL_UNIT_RAW = 'State' 
 COL_CATEGORY_RAW = 'Categorization (OE/Critical/Semicritical/Safe)'
 COL_EXTRACTION_RAW = 'Annual Extractable Ground Water Resource (Ham)'
@@ -37,6 +39,7 @@ DEFAULT_YEAR = '2025'
 
 try:
     # Load ONLY the specified data sheets, ignoring any new summary/pivot table sheets
+    # We must assume the file is correctly packaged in the deployment environment
     ingres_data_dict_raw = pd.read_excel(EXCEL_FILE_PATH, sheet_name=DATA_SHEET_NAMES)
     
     # Normalize column names in all loaded DataFrames for robustness
@@ -98,7 +101,14 @@ def get_data_lookup_response(query):
 
 
     if not unit_name:
-        return "I can answer data queries, but please specify an **Indian State** and optionally a **Year**."
+        # If no state is found, check if the generic response was returned by mistake.
+        # This text is NOT what the frontend was receiving, so this is unlikely to be the main failure mode.
+        if "extraction" in query_lower or "percentage" in query_lower or "data" in query_lower:
+            return "I can answer data queries, but please specify an **Indian State** and optionally a **Year**."
+        
+        # If the query is completely unknown, this is the final fallback for data lookup failure
+        return "I can only provide data on State-level groundwater categorization and general INGRES terminology. Please specify an Indian State."
+
 
     # --- iii. Perform the Lookup and AGGREGATION ---
     
@@ -114,27 +124,30 @@ def get_data_lookup_response(query):
     if extraction_series is None:
         total_extraction_str = f"Column Not Found (Expected: {COL_EXTRACTION_RAW})"
     else:
+        # Note: If this line fails due to bad data format, the outer try/except will catch it.
         numeric_extraction = pd.to_numeric(extraction_series, errors='coerce')
         total_extraction = numeric_extraction.sum()
         
         if total_extraction == 0 and numeric_extraction.isnull().all():
-             total_extraction_str = "Data unavailable or zero"
+            total_extraction_str = "Data unavailable or zero"
         else:
-             total_extraction_str = f"{total_extraction:,.2f}"
-             
+            total_extraction_str = f"{total_extraction:,.2f}"
+            
     # 3. Percentage Calculation
     percentage_series = state_data.get(COL_PERCENTAGE_NORM)
     
     if percentage_series is None:
         avg_percentage_str = f"Percentage Column Not Found (Expected: {COL_PERCENTAGE_RAW})"
     else:
+        # Note: If this line fails due to bad data format, the outer try/except will catch it.
         numeric_percentage = pd.to_numeric(percentage_series, errors='coerce')
-        avg_percentage = numeric_percentage.mean()
+        # We average the percentage column for all units in the state
+        avg_percentage = numeric_percentage.mean() 
         
         if pd.isna(avg_percentage):
             avg_percentage_str = "Data unavailable"
         else:
-            # Format the percentage clearly (multiplying by 100 for display)
+            # Format the percentage clearly 
             avg_percentage_str = f"{avg_percentage * 100:.2f}%"
             
     # 4. Determine overall status 
@@ -156,38 +169,56 @@ def get_data_lookup_response(query):
 
 # --- 4. Initialize Flask App and CORS ---
 app = Flask(__name__)
-# Enable CORS for all domains, allowing your public frontend to connect
-CORS(app) 
+# Explicitly enable CORS for all domains to allow the static frontend to connect
+CORS(app, resources={r"/*": {"origins": "*"}}) 
 
-# --- 5. Define the main Chat Endpoint ---
+# --- 5. Define the main Chat Endpoint (UPDATED WITH TRY/EXCEPT) ---
 @app.route('/chat', methods=['POST'])
 def chat():
     # Simulate a small delay for better UX
     time.sleep(0.5) 
     
     if not data_loaded:
-        return jsonify({"response": "Error: INGRES data failed to load on the server. Check if 'INGRES DATABASE.xlsx' exists."})
+        # This should only happen if the file was missing on startup
+        return jsonify({"response": "Error: INGRES data failed to load on the server. Check if 'INGRES DATABASE.xlsx' exists."}), 500
 
     try:
+        # 1. Parse incoming JSON body
+        # Note: Your frontend sends {'message': userMessage}, so we look for 'message'.
+        if not request.json or 'message' not in request.json:
+            # Check for invalid request format
+            return jsonify({"response": "Invalid request format. Please send JSON with a 'message' key."}), 400
+            
         user_query = request.json.get('message', '')
-    except:
-        return jsonify({"response": "Invalid request format."})
-    
-    # Check for simple FAQs first
-    response_text = get_faq_response(user_query)
-    
-    if response_text:
-        return jsonify({"response": response_text})
-    
-    # If no FAQ match, perform data lookup
-    response_text = get_data_lookup_response(user_query)
+        
+        # 2. Check for simple FAQs first
+        response_text = get_faq_response(user_query)
+        
+        if response_text:
+            return jsonify({"response": response_text})
+        
+        # 3. If no FAQ match, perform data lookup
+        response_text = get_data_lookup_response(user_query)
 
-    return jsonify({"response": response_text})
+        return jsonify({"response": response_text})
+
+    # 🚨 CATCH ALL EXCEPTIONS TO RETURN THE PYTHON ERROR 🚨
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        # Log the error on the server
+        print(f"FATAL API ERROR (Query: {user_query}): {error_trace}")
+        
+        # Return the error message to the frontend for debugging
+        return jsonify({
+            "response": f"FATAL BACKEND ERROR: A critical Python error occurred. Details: {e}",
+            "details": error_trace
+        }), 500
 
 
 # --- 6. Define the Home Route (Placeholder) ---
 @app.route('/', methods=['GET'])
 def home():
+    # Show status message
     return "JIVA Backend is Running! Access the frontend via the static server."
 
 
