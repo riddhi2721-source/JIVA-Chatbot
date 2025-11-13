@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Groundwater Intelligence Project - JIVA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css"> 
+</head>
+<body>
+    
+    <div class="container">
+        <nav class="nav-bar">
+            <div class="nav-logo">JIVA <span class="nav-subtitle">Intelligence</span></div>
+            <div class="nav-links">
+                <a href="#" class="active">Dashboard</a>
+                <a href="#">Resources</a>
+            </div>
+        </nav>
+        
+        <div class="hero-section">
+            <p class="hero-label">JAL INTELLIGENCE VIRTUAL ASSISTANT (JIVA) PROJECT</p>
+            <h1>Sustainable Water Management</h1>
+            <p>Leveraging the INGRES database to visualize India's critical groundwater resources and inform policy decisions.</p>
+            <a href="#" class="cta-button primary-cta">Dive into Data</a>
+        </div>
+
+        <div class="content-grid">
+            <div class="content-card primary-card">
+                <h2>🌱 The Importance of Groundwater</h2>
+                <p>Groundwater is a vital resource, particularly in India, providing a significant portion of water for irrigation, industry, and domestic use. Sustainable extraction is critical to prevent depletion and ensure long-term availability.</p>
+                <p class="sub-text">The status of groundwater units is categorized as Safe, Semi Critical, Critical, or Over Exploited based on the ratio of annual extraction to recharge.</p>
+            </div>
+
+            <div class="content-card secondary-card">
+                <h2>📊 Data & Categorization (INGRES)</h2>
+                <p>The India Ground Water Resource Estimation System (INGRES) provides comprehensive data on the availability and usage of groundwater. Analyzing data like the Annual Extractable Resource assesses aquifer health.</p>
+                <p class="sub-text">Use the floating **JIVA Chatbot** to look up aggregated extraction data and categorization status for any Indian State available in the system.</p>
+            </div>
+        </div>
+        
+        <div class="call-to-action">
+            <h3>Need Specific State Data?</h3>
+            <p>Click the chat bubble in the bottom right corner to interact with JIVA.</p>
+            <button id="cta-chat-button" class="cta-button secondary-cta">Open JIVA Chat</button>
+        </div>
+
+    </div>
+
+
+    <div id="chat-container">
+        <header>
+            <div class="header-content">
+                <div class="logo">🤖</div>
+                <div class="title-group">
+                    <h1>JIVA Assistant</h1>
+                    <p>INGRES Data Insights</p>
+                </div>
+            </div>
+            <button id="chat-close-button" class="close-btn">✖</button>
+        </header>
+
+        <div id="chat-box">
+            <div class="message bot intro">
+                Hello! I am **JIVA**, your AI assistant for INGRES data. Ask me a question about categorization, extraction, or general INGRES terminology!
+            </div>
+        </div>
+        
+        <form id="chat-form">
+            <input type="text" id="user-input" placeholder="Type your query here..." required>
+            <button type="submit">Send</button>
+        </form>
+    </div>
+
+    <button id="chat-toggle-button">
+        <span class="chat-icon">💬</span>
+        <span class="close-icon">✖</span>
+    </button>
+
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const chatToggleButton = document.getElementById('chat-toggle-button');
+        const chatCloseButton = document.getElementById('chat-close-button');
+        const ctaChatButton = document.getElementById('cta-chat-button');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+
+        // --- TOGGLE FUNCTIONALITY ---
+        function toggleChat(open) {
+            const isOpen = open !== undefined ? open : chatContainer.classList.contains('open');
+            
+            if (open === true || !isOpen) {
+                chatContainer.classList.add('open');
+                chatToggleButton.classList.add('open');
+                setTimeout(() => userInput.focus(), 300); 
+            } else {
+                chatContainer.classList.remove('open');
+                chatToggleButton.classList.remove('open');
+            }
+        }
+        
+        chatToggleButton.addEventListener('click', () => toggleChat());
+        chatCloseButton.addEventListener('click', () => toggleChat(false));
+        ctaChatButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleChat(true);
+        });
+        
+        // --- CHAT MESSAGE SENDING (MOCK RESPONSE) ---
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const userMessage = userInput.value.trim();
+            userInput.value = '';
+
+            if (userMessage === '') return;
+
+            // 1. Display User Message
+            appendMessage(userMessage, 'user');
+            
+            // 2. Show typing indicator
+            const typingIndicator = appendMessage('...', 'bot typing');
+            typingIndicator.id = 'typing-indicator';
+
+            // --- MOCK API CALL SIMULATION ---
+            setTimeout(() => {
+                // Remove typing indicator
+                typingIndicator.remove();
+
+                const lowerMsg = userMessage.toLowerCase();
+                let botResponse = '';
+
+                if (lowerMsg.includes('tamil nadu')) {
+                    botResponse = "**Tamil Nadu Groundwater Status (2025):**\nAs per the latest INGRES data, 15 blocks are categorized as *Critical* and 60 blocks are *Over Exploited*. The extraction percentage is *85%* overall, indicating significant stress on the resource.";
+                } else if (lowerMsg.includes('categorization')) {
+                    botResponse = "Groundwater units are categorized based on the ratio of annual extraction to recharge. The four main categories are: **Safe**, **Semi Critical**, **Critical**, and **Over Exploited**.";
+                } else if (lowerMsg.includes('jiva') || lowerMsg.includes('assistant')) {
+                    botResponse = "I am JIVA, the Jal Intelligence Virtual Assistant. I provide quick lookups on groundwater data and categorization status from the INGRES database. Try asking for a specific state!";
+                } else if (lowerMsg.includes('data') || lowerMsg.includes('extraction')) {
+                    botResponse = "I have access to aggregated data on Annual Extractable Resource and Extraction Percentage. This information helps determine the health and usage status of an aquifer.";
+                } else {
+                    botResponse = "That's an interesting question! I can currently provide data on State-level groundwater categorization and general INGRES terminology. Could you ask about a state or a specific term?";
+                }
+                
+                // 3. Display Mock Bot Response
+                appendMessage(botResponse, 'bot');
+            }, 1500); 
+        });
+
+        function appendMessage(message, sender) {
+            const chatBox = document.getElementById('chat-box');
+            const messageDiv = document.createElement('div');
+            
+            let classes = ['message'];
+            if (sender === 'user') {
+                classes.push('user');
+            } else if (sender === 'bot intro') {
+                classes.push('bot', 'intro');
+            } else if (sender === 'bot typing') {
+                 // Simple typing animation style (dots)
+                 messageDiv.innerHTML = '<span class="typing-dot">.</span><span class="typing-dot">.</span><span class="typing-dot">.</span>';
+                 classes.push('bot', 'typing-indicator');
+            } else {
+                classes.push('bot');
+            }
+
+            messageDiv.classList.add(...classes);
+            
+            // Handle formatting (bolding, newlines) for non-typing messages
+            if (sender !== 'bot typing') {
+                messageDiv.innerHTML = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+            }
+            
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return messageDiv;
+        }
+    </script>
+</body>
+</html>
