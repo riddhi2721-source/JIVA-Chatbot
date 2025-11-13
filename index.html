@@ -85,8 +85,13 @@
         const ctaChatButton = document.getElementById('cta-chat-button');
         const chatForm = document.getElementById('chat-form');
         const userInput = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
 
-        // --- TOGGLE FUNCTIONALITY ---
+        // ** 🎯 LIVE RENDER API URL - CONFIRMED BY USER **
+        const API_BASE_URL = 'https://jiva-chatbot.onrender.com';
+        const API_ENDPOINT = API_BASE_URL + '/chat'; // Resolves to: https://jiva-chatbot.onrender.com/chat
+
+        // --- TOGGLE FUNCTIONALITY (NO CHANGE) ---
         function toggleChat(open) {
             const isOpen = open !== undefined ? open : chatContainer.classList.contains('open');
             
@@ -107,7 +112,7 @@
             toggleChat(true);
         });
         
-        // --- CHAT MESSAGE SENDING (MOCK RESPONSE) ---
+        // --- CHAT MESSAGE SENDING (IMPROVED ERROR HANDLING) ---
         chatForm.addEventListener('submit', function(e) {
             e.preventDefault();
 
@@ -123,33 +128,53 @@
             const typingIndicator = appendMessage('...', 'bot typing');
             typingIndicator.id = 'typing-indicator';
 
-            // --- MOCK API CALL SIMULATION ---
-            setTimeout(() => {
+            // --- ACTUAL API CALL TO RENDER ---
+            fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    'message': userMessage 
+                }), 
+            })
+            .then(response => {
+                // Check for non-2xx status codes (e.g., 404, 500)
+                if (!response.ok) {
+                    console.error(`HTTP Error: ${response.status} (${response.statusText})`);
+                    // Attempt to read the error body from the API for better debugging
+                    return response.json().catch(() => ({ 
+                        'response': `API Error: Status ${response.status}. Check console for details.`,
+                        'details': `Could not parse error response from API. Endpoint: ${API_ENDPOINT}`
+                    }));
+                }
+                return response.json();
+            })
+            .then(data => {
                 // Remove typing indicator
                 typingIndicator.remove();
 
-                const lowerMsg = userMessage.toLowerCase();
-                let botResponse = '';
-
-                if (lowerMsg.includes('tamil nadu')) {
-                    botResponse = "**Tamil Nadu Groundwater Status (2025):**\nAs per the latest INGRES data, 15 blocks are categorized as *Critical* and 60 blocks are *Over Exploited*. The extraction percentage is *85%* overall, indicating significant stress on the resource.";
-                } else if (lowerMsg.includes('categorization')) {
-                    botResponse = "Groundwater units are categorized based on the ratio of annual extraction to recharge. The four main categories are: **Safe**, **Semi Critical**, **Critical**, and **Over Exploited**.";
-                } else if (lowerMsg.includes('jiva') || lowerMsg.includes('assistant')) {
-                    botResponse = "I am JIVA, the Jal Intelligence Virtual Assistant. I provide quick lookups on groundwater data and categorization status from the INGRES database. Try asking for a specific state!";
-                } else if (lowerMsg.includes('data') || lowerMsg.includes('extraction')) {
-                    botResponse = "I have access to aggregated data on Annual Extractable Resource and Extraction Percentage. This information helps determine the health and usage status of an aquifer.";
-                } else {
-                    botResponse = "That's an interesting question! I can currently provide data on State-level groundwater categorization and general INGRES terminology. Could you ask about a state or a specific term?";
-                }
+                // 3. Display Bot Response
+                const botResponse = data.response || "Sorry, I received an empty or unexpected response from the API.";
                 
-                // 3. Display Mock Bot Response
-                appendMessage(botResponse, 'bot');
-            }, 1500); 
+                // Log detailed error if the response includes 'FATAL BACKEND ERROR' for debugging
+                if (botResponse.includes("FATAL BACKEND ERROR") && data.details) {
+                    console.error("Backend Traceback:", data.details);
+                    appendMessage(`⚠️ ${botResponse} (See console for Traceback details)`, 'bot');
+                } else {
+                    appendMessage(botResponse, 'bot');
+                }
+            })
+            .catch(error => {
+                // Handle network errors (e.g., Render server went down)
+                typingIndicator.remove();
+                console.error('Fetch error:', error);
+                appendMessage(`Network Error: Could not connect to the JIVA API at ${API_ENDPOINT}. Check console for details.`, 'bot');
+            });
         });
 
+        // --- APPEND MESSAGE FUNCTION (NO CHANGE) ---
         function appendMessage(message, sender) {
-            const chatBox = document.getElementById('chat-box');
             const messageDiv = document.createElement('div');
             
             let classes = ['message'];
@@ -159,8 +184,8 @@
                 classes.push('bot', 'intro');
             } else if (sender === 'bot typing') {
                  // Simple typing animation style (dots)
-                 messageDiv.innerHTML = '<span class="typing-dot">.</span><span class="typing-dot">.</span><span class="typing-dot">.</span>';
-                 classes.push('bot', 'typing-indicator');
+                messageDiv.innerHTML = '<span class="typing-dot">.</span><span class="typing-dot">.</span><span class="typing-dot">.</span>';
+                classes.push('bot', 'typing-indicator');
             } else {
                 classes.push('bot');
             }
